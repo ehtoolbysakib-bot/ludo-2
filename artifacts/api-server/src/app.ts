@@ -68,7 +68,7 @@ if (process.env.NODE_ENV === "production") {
 
     // Catch-all: serve index.html for client-side routing
     // express.static above won't match /api/* paths, so API routes work fine
-    app.get("*", (_req, res) => {
+    app.get(/.*/, (_req, res) => {
       res.sendFile(path.join(frontendDist, "index.html"));
     });
   } else {

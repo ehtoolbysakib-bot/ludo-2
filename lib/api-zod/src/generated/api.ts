@@ -104,7 +104,9 @@ export const createRoomBodyMaxPlayersMax = 4;
 
 
 export const CreateRoomBody = zod.object({
-  "maxPlayers": zod.number().min(createRoomBodyMaxPlayersMin).max(createRoomBodyMaxPlayersMax)
+  "maxPlayers": zod.number().min(createRoomBodyMaxPlayersMin).max(createRoomBodyMaxPlayersMax),
+  "teamMode": zod.boolean().optional().default(false),
+  "betAmount": zod.number().min(0).optional().default(0)
 })
 
 export const CreateRoomResponse = zod.object({
@@ -113,6 +115,8 @@ export const CreateRoomResponse = zod.object({
   "hostId": zod.string(),
   "status": zod.enum(['waiting', 'playing', 'finished']),
   "maxPlayers": zod.number(),
+  "teamMode": zod.boolean(),
+  "betAmount": zod.number(),
   "players": zod.array(zod.object({
   "clerkId": zod.string(),
   "displayName": zod.string(),
@@ -137,6 +141,8 @@ export const GetRoomByCodeResponse = zod.object({
   "hostId": zod.string(),
   "status": zod.enum(['waiting', 'playing', 'finished']),
   "maxPlayers": zod.number(),
+  "teamMode": zod.boolean(),
+  "betAmount": zod.number(),
   "players": zod.array(zod.object({
   "clerkId": zod.string(),
   "displayName": zod.string(),
@@ -161,6 +167,8 @@ export const JoinRoomResponse = zod.object({
   "hostId": zod.string(),
   "status": zod.enum(['waiting', 'playing', 'finished']),
   "maxPlayers": zod.number(),
+  "teamMode": zod.boolean(),
+  "betAmount": zod.number(),
   "players": zod.array(zod.object({
   "clerkId": zod.string(),
   "displayName": zod.string(),

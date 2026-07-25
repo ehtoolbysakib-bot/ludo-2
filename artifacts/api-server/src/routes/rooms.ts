@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db, usersTable, roomsTable } from "@workspace/db";
 import {
   CreateRoomBody,
@@ -79,6 +79,14 @@ router.post("/rooms", requireAuth, async (req: any, res): Promise<void> => {
   // teamMode only applies when maxPlayers === 4
   const teamMode = parsed.data.maxPlayers === 4 ? (parsed.data.teamMode ?? false) : false;
   const betAmount = parsed.data.betAmount ?? 0;
+
+  // Check host has enough coins for the bet
+  if (betAmount > 0 && user.coins < betAmount) {
+    res.status(400).json({
+      error: `আপনার ব্যালেন্স অপর্যাপ্ত। বাজি খেলতে ${betAmount} কয়েন দরকার, কিন্তু আপনার আছে মাত্র ${user.coins} কয়েন।`,
+    });
+    return;
+  }
 
   const [room] = await db
     .insert(roomsTable)
@@ -194,13 +202,31 @@ router.post("/rooms/:code/start", requireAuth, async (req: any, res): Promise<vo
 
   const players = (room.players as any[]) || [];
   if (players.length < 2) {
-    res.status(400).json({ error: "Need at least 2 players to start" });
+    res.status(400).json({ error: "খেলা শুরু করতে কমপক্ষে ২ জন খেলোয়াড় দরকার" });
     return;
   }
 
   if (room.status !== "waiting") {
-    res.status(400).json({ error: "Game already started" });
+    res.status(400).json({ error: "খেলা ইতোমধ্যে শুরু হয়েছে" });
     return;
+  }
+
+  // If there is a bet, verify every player has enough coins
+  const betAmount = (room as any).betAmount ?? 0;
+  if (betAmount > 0) {
+    const clerkIds = players.map((p: any) => p.clerkId);
+    const dbUsers = await db
+      .select({ clerkId: usersTable.clerkId, displayName: usersTable.displayName, coins: usersTable.coins })
+      .from(usersTable)
+      .where(inArray(usersTable.clerkId, clerkIds));
+
+    const broke = dbUsers.find((u) => u.coins < betAmount);
+    if (broke) {
+      res.status(400).json({
+        error: `"${broke.displayName}"-এর ব্যালেন্স অপর্যাপ্ত। বাজি ${betAmount} কয়েন, কিন্তু তার আছে মাত্র ${broke.coins} কয়েন।`,
+      });
+      return;
+    }
   }
 
   const gameState = initGameState(players);

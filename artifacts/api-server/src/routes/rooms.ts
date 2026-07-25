@@ -33,6 +33,8 @@ function formatRoom(room: any) {
     hostId: room.hostId,
     status: room.status,
     maxPlayers: room.maxPlayers,
+    teamMode: room.teamMode ?? false,
+    betAmount: room.betAmount ?? 0,
     players: room.players || [],
     createdAt: room.createdAt instanceof Date ? room.createdAt.toISOString() : room.createdAt,
   };
@@ -74,12 +76,18 @@ router.post("/rooms", requireAuth, async (req: any, res): Promise<void> => {
     isReady: false,
   };
 
+  // teamMode only applies when maxPlayers === 4
+  const teamMode = parsed.data.maxPlayers === 4 ? (parsed.data.teamMode ?? false) : false;
+  const betAmount = parsed.data.betAmount ?? 0;
+
   const [room] = await db
     .insert(roomsTable)
     .values({
       code,
       hostId: user.clerkId,
       maxPlayers: parsed.data.maxPlayers,
+      teamMode,
+      betAmount,
       players: [hostPlayer],
     })
     .returning();

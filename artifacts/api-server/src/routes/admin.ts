@@ -1,193 +1,275 @@
 import { Router, type IRouter } from "express";
-import { eq, like, or, count, sum, desc } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db, usersTable, roomsTable } from "@workspace/db";
 import {
-  AdminListUsersQueryParams,
-  AdminSuspendUserBody,
-  AdminSuspendUserParams,
-  AdminAddCoinsBody,
-  AdminAddCoinsParams,
+  CreateRoomBody,
+  CreateRoomResponse,
+  GetRoomByCodeResponse,
+  JoinRoomResponse,
 } from "@workspace/api-zod";
+import { generateRoomCode } from "../lib/roomCode";
+import { broadcastAll, initGameState } from "../lib/gameWebSocket";
 
 const router: IRouter = Router();
 
-const requireAdmin = async (req: any, res: any, next: any) => {
-  const clerkId = req.session?.userId as string | undefined;
-  if (!clerkId) {
+const requireAuth = (req: any, res: any, next: any) => {
+  const userId = req.session?.userId as string | undefined;
+  if (!userId) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
-  req.clerkId = clerkId;
-
-  const [user] = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.clerkId, clerkId));
-
-  if (!user || !user.isAdmin) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
+  req.clerkId = userId;
   next();
 };
 
-function formatUser(u: typeof usersTable.$inferSelect) {
+// Use diagonal color pairs so 2-player games have players at opposite corners:
+// blue (top-left) + green (bottom-right), then red + yellow for 3-4 player
+const PLAYER_COLORS = ["blue", "green", "red", "yellow"];
+
+function formatRoom(room: any) {
   return {
-    id: u.id,
-    clerkId: u.clerkId,
-    email: u.email ?? "",
-    phone: u.phone ?? null,
-    displayName: u.displayName,
-    avatarUrl: u.avatarUrl ?? null,
-    gender: u.gender,
-    coins: u.coins,
-    level: u.level,
-    wins: u.wins,
-    losses: u.losses,
-    matches: u.matches,
-    isSuspended: u.isSuspended,
-    isAdmin: u.isAdmin,
-    lastDailyReward: u.lastDailyReward ?? null,
-    createdAt: u.createdAt,
+    id: room.id,
+    code: room.code,
+    hostId: room.hostId,
+    status: room.status,
+    maxPlayers: room.maxPlayers,
+    teamMode: room.teamMode ?? false,
+    betAmount: room.betAmount ?? 0,
+    players: room.players || [],
+    createdAt: room.createdAt instanceof Date ? room.createdAt.toISOString() : room.createdAt,
   };
 }
 
-// List users
-router.get("/admin/users", requireAdmin, async (req: any, res): Promise<void> => {
-  const parsed = AdminListUsersQueryParams.safeParse(req.query);
+// Create room
+router.post("/rooms", requireAuth, async (req: any, res): Promise<void> => {
+  const parsed = CreateRoomBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
 
-  const { page = 1, limit = 20, search } = parsed.data;
-  const offset = (page - 1) * limit;
-
-  const searchPattern = search ? `%${search}%` : undefined;
-  const whereClause = searchPattern
-    ? or(
-        like(usersTable.displayName, searchPattern),
-        like(usersTable.email, searchPattern),
-        like(usersTable.phone, searchPattern),
-      )
-    : undefined;
-
-  const users = await db
+  const [user] = await db
     .select()
     .from(usersTable)
-    .where(whereClause)
-    .orderBy(desc(usersTable.createdAt))
-    .limit(limit)
-    .offset(offset);
+    .where(eq(usersTable.clerkId, req.clerkId));
 
-  const [{ total }] = await db
-    .select({ total: count() })
-    .from(usersTable)
-    .where(whereClause);
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
 
-  res.json({
-    users: users.map(formatUser),
-    total: Number(total),
-    page,
-    limit,
-  });
+  // Generate unique room code
+  let code = generateRoomCode();
+  let attempts = 0;
+  while (attempts < 10) {
+    const existing = await db.select().from(roomsTable).where(eq(roomsTable.code, code));
+    if (existing.length === 0) break;
+    code = generateRoomCode();
+    attempts++;
+  }
+
+  const hostPlayer = {
+    clerkId: user.clerkId,
+    displayName: user.displayName,
+    avatarUrl: user.avatarUrl ?? null,
+    color: PLAYER_COLORS[0],
+    isReady: false,
+  };
+
+  // teamMode only applies when maxPlayers === 4
+  const teamMode = parsed.data.maxPlayers === 4 ? (parsed.data.teamMode ?? false) : false;
+  const betAmount = parsed.data.betAmount ?? 0;
+
+  // Check host has enough coins for the bet
+  if (betAmount > 0 && user.coins < betAmount) {
+    res.status(400).json({
+      error: `আপনার ব্যালেন্স অপর্যাপ্ত। বাজি খেলতে ${betAmount} কয়েন দরকার, কিন্তু আপনার আছে মাত্র ${user.coins} কয়েন।`,
+    });
+    return;
+  }
+
+  const [room] = await db
+    .insert(roomsTable)
+    .values({
+      code,
+      hostId: user.clerkId,
+      maxPlayers: parsed.data.maxPlayers,
+      teamMode,
+      betAmount,
+      players: [hostPlayer],
+    })
+    .returning();
+
+  res.status(201).json(CreateRoomResponse.parse(formatRoom(room)));
 });
 
-// Suspend/unsuspend user
-router.post(
-  "/admin/users/:userId/suspend",
-  requireAdmin,
-  async (req: any, res): Promise<void> => {
-    const params = AdminSuspendUserParams.safeParse(req.params);
-    if (!params.success) {
-      res.status(400).json({ error: params.error.message });
-      return;
-    }
+// Get room by code
+router.get("/rooms/:code", async (req, res): Promise<void> => {
+  const code = Array.isArray(req.params.code) ? req.params.code[0] : req.params.code;
 
-    const parsed = AdminSuspendUserBody.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.message });
-      return;
-    }
+  const [room] = await db
+    .select()
+    .from(roomsTable)
+    .where(eq(roomsTable.code, code.toUpperCase()));
 
-    const [user] = await db
-      .update(usersTable)
-      .set({ isSuspended: parsed.data.suspended })
-      .where(eq(usersTable.clerkId, params.data.userId))
-      .returning();
+  if (!room) {
+    res.status(404).json({ error: "Room not found" });
+    return;
+  }
 
-    if (!user) {
-      res.status(404).json({ error: "User not found" });
-      return;
-    }
+  res.json(GetRoomByCodeResponse.parse(formatRoom(room)));
+});
 
-    res.json(formatUser(user));
-  },
-);
+// Join room
+router.post("/rooms/:code/join", requireAuth, async (req: any, res): Promise<void> => {
+  const code = Array.isArray(req.params.code) ? req.params.code[0] : req.params.code;
 
-// Add coins
-router.post(
-  "/admin/users/:userId/coins",
-  requireAdmin,
-  async (req: any, res): Promise<void> => {
-    const params = AdminAddCoinsParams.safeParse(req.params);
-    if (!params.success) {
-      res.status(400).json({ error: params.error.message });
-      return;
-    }
-
-    const parsed = AdminAddCoinsBody.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.message });
-      return;
-    }
-
-    const [existing] = await db
-      .select()
-      .from(usersTable)
-      .where(eq(usersTable.clerkId, params.data.userId));
-
-    if (!existing) {
-      res.status(404).json({ error: "User not found" });
-      return;
-    }
-
-    const [user] = await db
-      .update(usersTable)
-      .set({ coins: existing.coins + parsed.data.amount })
-      .where(eq(usersTable.clerkId, params.data.userId))
-      .returning();
-
-    res.json(formatUser(user));
-  },
-);
-
-// Admin dashboard stats
-router.get("/admin/stats", requireAdmin, async (_req, res): Promise<void> => {
-  const [{ totalUsers }] = await db
-    .select({ totalUsers: count() })
-    .from(usersTable);
-  const [{ activeUsers }] = await db
-    .select({ activeUsers: count() })
+  const [user] = await db
+    .select()
     .from(usersTable)
-    .where(eq(usersTable.isSuspended, false));
-  const [{ totalRooms }] = await db
-    .select({ totalRooms: count() })
-    .from(roomsTable);
-  const [{ totalCoins }] = await db
-    .select({ totalCoins: sum(usersTable.coins) })
-    .from(usersTable);
-  const [{ totalGamesRaw }] = await db
-    .select({ totalGamesRaw: sum(usersTable.matches) })
-    .from(usersTable);
+    .where(eq(usersTable.clerkId, req.clerkId));
 
-  res.json({
-    totalUsers: Number(totalUsers),
-    activeUsers: Number(activeUsers),
-    totalGames: Math.floor(Number(totalGamesRaw ?? 0) / 2),
-    totalRooms: Number(totalRooms),
-    totalCoinsInCirculation: Number(totalCoins ?? 0),
-  });
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  const [room] = await db
+    .select()
+    .from(roomsTable)
+    .where(eq(roomsTable.code, code.toUpperCase()));
+
+  if (!room) {
+    res.status(404).json({ error: "Room not found" });
+    return;
+  }
+
+  if (room.status !== "waiting") {
+    res.status(400).json({ error: "Game already started" });
+    return;
+  }
+
+  const players = (room.players as any[]) || [];
+
+  // Already in room
+  if (players.some((p: any) => p.clerkId === user.clerkId)) {
+    res.json(JoinRoomResponse.parse(formatRoom(room)));
+    return;
+  }
+
+  if (players.length >= room.maxPlayers) {
+    res.status(400).json({ error: "Room is full" });
+    return;
+  }
+
+  const color = PLAYER_COLORS[players.length];
+  const newPlayer = {
+    clerkId: user.clerkId,
+    displayName: user.displayName,
+    avatarUrl: user.avatarUrl ?? null,
+    color,
+    isReady: false,
+  };
+
+  const updatedPlayers = [...players, newPlayer];
+  const [updated] = await db
+    .update(roomsTable)
+    .set({ players: updatedPlayers })
+    .where(eq(roomsTable.code, code.toUpperCase()))
+    .returning();
+
+  res.json(JoinRoomResponse.parse(formatRoom(updated)));
+});
+
+// Start game
+router.post("/rooms/:code/start", requireAuth, async (req: any, res): Promise<void> => {
+  const code = Array.isArray(req.params.code) ? req.params.code[0] : req.params.code;
+
+  const [room] = await db
+    .select()
+    .from(roomsTable)
+    .where(eq(roomsTable.code, code.toUpperCase()));
+
+  if (!room) {
+    res.status(404).json({ error: "Room not found" });
+    return;
+  }
+
+  if (room.hostId !== req.clerkId) {
+    res.status(403).json({ error: "Only the host can start the game" });
+    return;
+  }
+
+  const players = (room.players as any[]) || [];
+  if (players.length < 2) {
+    res.status(400).json({ error: "খেলা শুরু করতে কমপক্ষে ২ জন খেলোয়াড় দরকার" });
+    return;
+  }
+
+  if (room.status !== "waiting") {
+    res.status(400).json({ error: "খেলা ইতোমধ্যে শুরু হয়েছে" });
+    return;
+  }
+
+  // If there is a bet, verify every player has enough coins
+  const betAmount = (room as any).betAmount ?? 0;
+  if (betAmount > 0) {
+    const clerkIds = players.map((p: any) => p.clerkId);
+    const dbUsers = await db
+      .select({ clerkId: usersTable.clerkId, displayName: usersTable.displayName, coins: usersTable.coins })
+      .from(usersTable)
+      .where(inArray(usersTable.clerkId, clerkIds));
+
+    const broke = dbUsers.find((u) => u.coins < betAmount);
+    if (broke) {
+      res.status(400).json({
+        error: `"${broke.displayName}"-এর ব্যালেন্স অপর্যাপ্ত। বাজি ${betAmount} কয়েন, কিন্তু তার আছে মাত্র ${broke.coins} কয়েন।`,
+      });
+      return;
+    }
+  }
+
+  const gameState = initGameState(players);
+  await db
+    .update(roomsTable)
+    .set({ status: "playing", gameState })
+    .where(eq(roomsTable.code, code.toUpperCase()));
+
+  broadcastAll(code.toUpperCase(), { type: "game_start", gameState });
+
+  res.json({ ok: true });
+});
+
+// Leave room
+router.post("/rooms/:code/leave", requireAuth, async (req: any, res): Promise<void> => {
+  const code = Array.isArray(req.params.code) ? req.params.code[0] : req.params.code;
+
+  const [room] = await db
+    .select()
+    .from(roomsTable)
+    .where(eq(roomsTable.code, code.toUpperCase()));
+
+  if (!room) {
+    res.status(404).json({ error: "Room not found" });
+    return;
+  }
+
+  const players = (room.players as any[]) || [];
+  const updatedPlayers = players.filter((p: any) => p.clerkId !== req.clerkId);
+
+  if (updatedPlayers.length === 0) {
+    // Delete room if empty
+    await db.delete(roomsTable).where(eq(roomsTable.code, code.toUpperCase()));
+  } else {
+    // Transfer host if needed
+    const newHostId = room.hostId === req.clerkId ? updatedPlayers[0].clerkId : room.hostId;
+    await db
+      .update(roomsTable)
+      .set({ players: updatedPlayers, hostId: newHostId })
+      .where(eq(roomsTable.code, code.toUpperCase()));
+  }
+
+  res.json({ ok: true });
 });
 
 export default router;

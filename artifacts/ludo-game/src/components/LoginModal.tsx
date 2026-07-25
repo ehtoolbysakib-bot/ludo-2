@@ -87,7 +87,7 @@ export function LoginModal({ onClose, onSuccess, message }: Props) {
   const inputStyle = { background: 'rgba(255,255,255,0.07)', border: '1px solid #5c3eb8' };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 sm:p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl"
         style={{ border: '1.5px solid #FFD70066', background: 'linear-gradient(160deg,#1d0f3d 0%,#2d1b69 100%)' }}>

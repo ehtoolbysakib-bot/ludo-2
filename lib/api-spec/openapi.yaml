@@ -1,0 +1,473 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Anaya's Board - Ludo Game API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: users
+    description: User management
+  - name: rooms
+    description: Game room management
+  - name: game
+    description: Game state
+  - name: admin
+    description: Admin operations
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /users/me:
+    get:
+      operationId: getMe
+      tags: [users]
+      summary: Get current user profile
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
+
+  /users/me/sync:
+    post:
+      operationId: syncUser
+      tags: [users]
+      summary: Sync/create user from Clerk auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserSync"
+      responses:
+        "200":
+          description: Synced user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/me/daily-reward:
+    post:
+      operationId: claimDailyReward
+      tags: [users]
+      summary: Claim daily reward coins
+      responses:
+        "200":
+          description: Reward claimed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DailyRewardResult"
+        "400":
+          description: Already claimed today
+
+  /users/stats:
+    get:
+      operationId: getMyStats
+      tags: [users]
+      summary: Get current user game statistics
+      responses:
+        "200":
+          description: User statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserStats"
+
+  /users/leaderboard:
+    get:
+      operationId: getLeaderboard
+      tags: [users]
+      summary: Get top players leaderboard
+      responses:
+        "200":
+          description: Leaderboard
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaderboardEntry"
+
+  /rooms:
+    post:
+      operationId: createRoom
+      tags: [rooms]
+      summary: Create a new game room
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoomInput"
+      responses:
+        "201":
+          description: Room created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Room"
+
+  /rooms/{code}:
+    get:
+      operationId: getRoomByCode
+      tags: [rooms]
+      summary: Get room by code
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Room details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Room"
+        "404":
+          description: Room not found
+
+  /rooms/{code}/join:
+    post:
+      operationId: joinRoom
+      tags: [rooms]
+      summary: Join a game room by code
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Joined room
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Room"
+        "400":
+          description: Room full or game started
+        "404":
+          description: Room not found
+
+  /rooms/{code}/leave:
+    post:
+      operationId: leaveRoom
+      tags: [rooms]
+      summary: Leave a game room
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Left room
+
+  /admin/users:
+    get:
+      operationId: adminListUsers
+      tags: [admin]
+      summary: List all users (admin only)
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUsersPage"
+        "403":
+          description: Forbidden
+
+  /admin/users/{userId}/suspend:
+    post:
+      operationId: adminSuspendUser
+      tags: [admin]
+      summary: Suspend or unsuspend a user (admin only)
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SuspendInput"
+      responses:
+        "200":
+          description: User suspension status updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "403":
+          description: Forbidden
+
+  /admin/users/{userId}/coins:
+    post:
+      operationId: adminAddCoins
+      tags: [admin]
+      summary: Add coins to a user's account (admin only)
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CoinsInput"
+      responses:
+        "200":
+          description: Coins added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "403":
+          description: Forbidden
+
+  /admin/stats:
+    get:
+      operationId: adminGetStats
+      tags: [admin]
+      summary: Get admin dashboard stats (admin only)
+      responses:
+        "200":
+          description: Admin stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStats"
+        "403":
+          description: Forbidden
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    User:
+      type: object
+      required: [id, clerkId, email, displayName, coins, level, isSuspended, isAdmin, createdAt]
+      properties:
+        id:
+          type: integer
+        clerkId:
+          type: string
+        email:
+          type: string
+        displayName:
+          type: string
+        avatarUrl:
+          type: ["string", "null"]
+        coins:
+          type: integer
+        level:
+          type: integer
+        isSuspended:
+          type: boolean
+        isAdmin:
+          type: boolean
+        lastDailyReward:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    UserSync:
+      type: object
+      required: [clerkId, email, displayName]
+      properties:
+        clerkId:
+          type: string
+        email:
+          type: string
+        displayName:
+          type: string
+        avatarUrl:
+          type: string
+
+    DailyRewardResult:
+      type: object
+      required: [coins, coinsEarned]
+      properties:
+        coins:
+          type: integer
+        coinsEarned:
+          type: integer
+
+    UserStats:
+      type: object
+      required: [wins, losses, matches, level, coins, winRate]
+      properties:
+        wins:
+          type: integer
+        losses:
+          type: integer
+        matches:
+          type: integer
+        level:
+          type: integer
+        coins:
+          type: integer
+        winRate:
+          type: number
+
+    LeaderboardEntry:
+      type: object
+      required: [rank, displayName, avatarUrl, wins, level, coins]
+      properties:
+        rank:
+          type: integer
+        displayName:
+          type: string
+        avatarUrl:
+          type: ["string", "null"]
+        wins:
+          type: integer
+        level:
+          type: integer
+        coins:
+          type: integer
+
+    Room:
+      type: object
+      required: [id, code, hostId, status, maxPlayers, players, createdAt]
+      properties:
+        id:
+          type: integer
+        code:
+          type: string
+        hostId:
+          type: string
+        status:
+          type: string
+          enum: [waiting, playing, finished]
+        maxPlayers:
+          type: integer
+        players:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoomPlayer"
+        createdAt:
+          type: string
+
+    RoomPlayer:
+      type: object
+      required: [clerkId, displayName, color, isReady]
+      properties:
+        clerkId:
+          type: string
+        displayName:
+          type: string
+        avatarUrl:
+          type: ["string", "null"]
+        color:
+          type: string
+        isReady:
+          type: boolean
+
+    RoomInput:
+      type: object
+      required: [maxPlayers]
+      properties:
+        maxPlayers:
+          type: integer
+          minimum: 2
+          maximum: 4
+
+    AdminUsersPage:
+      type: object
+      required: [users, total, page, limit]
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    SuspendInput:
+      type: object
+      required: [suspended]
+      properties:
+        suspended:
+          type: boolean
+        reason:
+          type: string
+
+    CoinsInput:
+      type: object
+      required: [amount]
+      properties:
+        amount:
+          type: integer
+
+    AdminStats:
+      type: object
+      required: [totalUsers, activeUsers, totalGames, totalRooms, totalCoinsInCirculation]
+      properties:
+        totalUsers:
+          type: integer
+        activeUsers:
+          type: integer
+        totalGames:
+          type: integer
+        totalRooms:
+          type: integer
+        totalCoinsInCirculation:
+          type: integer

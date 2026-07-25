@@ -80,6 +80,8 @@ export interface Room {
   hostId: string;
   status: RoomStatus;
   maxPlayers: number;
+  teamMode: boolean;
+  betAmount: number;
   players: RoomPlayer[];
   createdAt: string;
 }
@@ -90,6 +92,10 @@ export interface RoomInput {
      * @maximum 4
      */
   maxPlayers: number;
+  /** Only available when maxPlayers is 4 */
+  teamMode?: boolean;
+  /** Coin bet amount for this room (0 = no bet) */
+  betAmount?: number;
 }
 
 export interface AdminUsersPage {
@@ -121,4 +127,3 @@ page?: number;
 limit?: number;
 search?: string;
 };
-

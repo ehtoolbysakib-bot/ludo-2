@@ -9,6 +9,10 @@ import { logger } from "./lib/logger";
 
 const app: Express = express();
 
+// Render (and most cloud providers) terminate SSL at the load balancer
+// and forward plain HTTP to the app. Without this, secure cookies won't work.
+app.set("trust proxy", 1);
+
 app.use(
   pinoHttp({
     logger,
@@ -41,7 +45,7 @@ app.use(
     cookie: {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      sameSite: "lax",
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     },
   }),

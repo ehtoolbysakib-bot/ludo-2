@@ -1,51 +1,9 @@
-# =============================================================================
-# Render Blueprint — Ludo King Game Deployment
-# =============================================================================
-# This file defines the infrastructure for deploying the full Ludo King
-# application as a single Web Service on Render.
-#
-# For more details: https://render.com/docs/blueprint-spec
-# =============================================================================
-
 services:
-  # ── Main Web Service (Backend + Frontend) ──────────────────────────────────
   - type: web
-    name: ludo-king
+    name: ludo-game
     runtime: node
-    plan: free
-    region: singapore
-
-    # Root directory for the monorepo (empty = repo root)
-    rootDir: .
-
-    buildCommand: pnpm install --frozen-lockfile; pnpm run build
-    startCommand: node --enable-source-maps ./artifacts/api-server/dist/index.mjs
-
-    # Health check (the API exposes GET /api/healthz)
-    healthCheckPath: /api/healthz
-
-    # ── Environment Variables ────────────────────────────────────────────────
+    buildCommand: npm install -g pnpm@latest && pnpm install --frozen-lockfile && pnpm --filter @workspace/ludo-game run build && pnpm --filter @workspace/api-server run build
+    startCommand: node artifacts/api-server/dist/index.mjs
     envVars:
       - key: NODE_ENV
         value: production
-      - key: SESSION_SECRET
-        generateValue: true
-      - key: PORT
-        value: 10000
-      - key: SQLITE_DB_PATH
-        value: /var/data/ludo.db
-      - key: PNPM_VERSION
-        value: "10"
-      - key: NODE_VERSION
-        value: "22"
-      - key: BASE_PATH
-        value: /
-
-    # ── Persistent Disk (for SQLite data) ────────────────────────────────────
-    # NOTE: Persistent disks are only available on Starter+ plans.
-    # Remove this section if you're on the Free plan — data will reset on
-    # every deploy / idle spin-down.
-    disk:
-      name: data
-      mountPath: /var/data
-      sizeGB: 1

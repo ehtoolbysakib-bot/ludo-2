@@ -8,6 +8,8 @@ export const roomsTable = sqliteTable("rooms", {
   hostId: text("host_id").notNull(),
   status: text("status").notNull().default("waiting"),
   maxPlayers: integer("max_players").notNull().default(4),
+  teamMode: integer("team_mode", { mode: "boolean" }).notNull().default(false),
+  betAmount: integer("bet_amount").notNull().default(0),
   players: text("players", { mode: "json" })
     .notNull()
     .$defaultFn(() => []),

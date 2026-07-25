@@ -22,7 +22,7 @@ export const HealthCheckResponse = zod.object({
 export const GetMeResponse = zod.object({
   "id": zod.number(),
   "clerkId": zod.string(),
-  "email": zod.string(),
+  "email": zod.string().nullable(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
   "coins": zod.number(),
@@ -39,7 +39,7 @@ export const GetMeResponse = zod.object({
  */
 export const SyncUserBody = zod.object({
   "clerkId": zod.string(),
-  "email": zod.string(),
+  "email": zod.string().nullable(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().optional()
 })
@@ -47,7 +47,7 @@ export const SyncUserBody = zod.object({
 export const SyncUserResponse = zod.object({
   "id": zod.number(),
   "clerkId": zod.string(),
-  "email": zod.string(),
+  "email": zod.string().nullable(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
   "coins": zod.number(),
@@ -198,7 +198,7 @@ export const AdminListUsersResponse = zod.object({
   "users": zod.array(zod.object({
   "id": zod.number(),
   "clerkId": zod.string(),
-  "email": zod.string(),
+  "email": zod.string().nullable(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
   "coins": zod.number(),
@@ -229,7 +229,7 @@ export const AdminSuspendUserBody = zod.object({
 export const AdminSuspendUserResponse = zod.object({
   "id": zod.number(),
   "clerkId": zod.string(),
-  "email": zod.string(),
+  "email": zod.string().nullable(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
   "coins": zod.number(),
@@ -255,7 +255,7 @@ export const AdminAddCoinsBody = zod.object({
 export const AdminAddCoinsResponse = zod.object({
   "id": zod.number(),
   "clerkId": zod.string(),
-  "email": zod.string(),
+  "email": zod.string().nullable(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
   "coins": zod.number(),

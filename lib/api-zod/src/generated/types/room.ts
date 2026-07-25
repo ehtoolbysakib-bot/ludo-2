@@ -14,6 +14,8 @@ export interface Room {
   hostId: string;
   status: RoomStatus;
   maxPlayers: number;
+  teamMode: boolean;
+  betAmount: number;
   players: RoomPlayer[];
   createdAt: string;
 }

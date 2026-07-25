@@ -1,7 +1,7 @@
 import React from 'react';
 import { useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, Users, Coins, Shield } from 'lucide-react';
+import { ChevronLeft, Coins, Shield } from 'lucide-react';
 import { useCreateRoom } from '@workspace/api-client-react';
 import { toast } from 'sonner';
 import { BottomNav } from '@/components/BottomNav';
@@ -29,11 +29,11 @@ export default function CreateRoom() {
       { data: { maxPlayers: players, teamMode: players === 4 ? teamMode : false, betAmount: effectiveBet } },
       {
         onSuccess: (room) => {
-          toast.success('Room created!');
+          toast.success('রুম তৈরি হয়েছে!');
           setLocation(`/room/${room.code}`);
         },
         onError: (err: any) => {
-          toast.error(err.message || 'Failed to create room');
+          toast.error(err.message || 'রুম তৈরি করতে সমস্যা হয়েছে');
         },
       }
     );
@@ -66,23 +66,14 @@ export default function CreateRoom() {
           >
             <ChevronLeft size={24} />
           </button>
-          <h1 className="text-2xl font-bold text-white">Create Room</h1>
+          <h1 className="text-2xl font-bold text-white">রুম তৈরি করুন</h1>
         </div>
 
         <div className="flex-1 px-6 flex flex-col gap-5 max-w-md w-full mx-auto">
-          {/* Host icon + title */}
-          <div className="glass-panel p-6 rounded-3xl text-center">
-            <div className="w-20 h-20 bg-gradient-to-tr from-[#FFD700] to-[#FFA500] rounded-full mx-auto mb-4 flex items-center justify-center glow-box">
-              <Users size={40} className="text-[#1a0533]" />
-            </div>
-            <h2 className="text-2xl font-bold text-white mb-1">Host a Game</h2>
-            <p className="text-[#a790c9] text-sm">Configure your room settings below.</p>
-          </div>
-
           {/* Player count */}
           <div className="glass-panel p-5 rounded-3xl">
             <p className="text-[#a790c9] text-xs uppercase tracking-widest font-bold mb-4">
-              Number of Players
+              খেলোয়াড়ের সংখ্যা
             </p>
             <div className="flex justify-center gap-4">
               {[2, 3, 4].map((num) => (
@@ -107,7 +98,7 @@ export default function CreateRoom() {
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <Shield size={18} className="text-[#FFD700]" />
-                  <p className="text-white font-bold">Team Mode</p>
+                  <p className="text-white font-bold">টিম মোড</p>
                 </div>
                 <button
                   onClick={() => setTeamMode((v) => !v)}
@@ -126,12 +117,12 @@ export default function CreateRoom() {
                 <div className="flex gap-3 mt-3">
                   {/* Team 1 */}
                   <div className="flex-1 rounded-2xl bg-[#1d0f3d] border border-[#3a2382] p-3 text-center">
-                    <p className="text-xs text-[#a790c9] font-bold uppercase tracking-wider mb-2">Team 1</p>
+                    <p className="text-xs text-[#a790c9] font-bold uppercase tracking-wider mb-2">দল ১</p>
                     <div className="flex justify-center gap-2">
                       <span className="w-5 h-5 rounded-full bg-[#4444FF] inline-block border-2 border-white/20" />
                       <span className="w-5 h-5 rounded-full bg-[#44BB44] inline-block border-2 border-white/20" />
                     </div>
-                    <p className="text-[10px] text-[#a790c9] mt-1">Blue &amp; Green</p>
+                    <p className="text-[10px] text-[#a790c9] mt-1">নীল &amp; সবুজ</p>
                   </div>
                   {/* VS */}
                   <div className="flex items-center justify-center px-1">
@@ -139,17 +130,17 @@ export default function CreateRoom() {
                   </div>
                   {/* Team 2 */}
                   <div className="flex-1 rounded-2xl bg-[#1d0f3d] border border-[#3a2382] p-3 text-center">
-                    <p className="text-xs text-[#a790c9] font-bold uppercase tracking-wider mb-2">Team 2</p>
+                    <p className="text-xs text-[#a790c9] font-bold uppercase tracking-wider mb-2">দল ২</p>
                     <div className="flex justify-center gap-2">
                       <span className="w-5 h-5 rounded-full bg-[#FF4444] inline-block border-2 border-white/20" />
                       <span className="w-5 h-5 rounded-full bg-[#FFD700] inline-block border-2 border-white/20" />
                     </div>
-                    <p className="text-[10px] text-[#a790c9] mt-1">Red &amp; Yellow</p>
+                    <p className="text-[10px] text-[#a790c9] mt-1">লাল &amp; হলুদ</p>
                   </div>
                 </div>
               ) : (
                 <p className="text-[#a790c9] text-xs">
-                  Enable to play as 2 diagonal teams (Blue+Green vs Red+Yellow).
+                  চালু করলে কোনাকোনি ২টি দলে খেলা যাবে (নীল+সবুজ বনাম লাল+হলুদ)।
                 </p>
               )}
             </div>
@@ -159,7 +150,7 @@ export default function CreateRoom() {
           <div className="glass-panel p-5 rounded-3xl">
             <div className="flex items-center gap-2 mb-4">
               <Coins size={18} className="text-[#FFD700]" />
-              <p className="text-white font-bold">Bet Amount</p>
+              <p className="text-white font-bold">বাজির পরিমাণ</p>
               {effectiveBet > 0 && (
                 <span className="ml-auto text-[#FFD700] font-black text-lg">{effectiveBet} 🪙</span>
               )}
@@ -177,7 +168,7 @@ export default function CreateRoom() {
                       : 'bg-[#3a2382] text-white border border-[#5c3eb8] hover:bg-[#4a2e9b]'
                   }`}
                 >
-                  {preset === 0 ? 'No Bet' : `${preset} 🪙`}
+                  {preset === 0 ? 'বাজি নেই' : `${preset} 🪙`}
                 </button>
               ))}
             </div>
@@ -187,7 +178,7 @@ export default function CreateRoom() {
               <input
                 type="number"
                 min={0}
-                placeholder="Custom amount..."
+                placeholder="নিজে লিখুন..."
                 value={customBet}
                 onChange={(e) => { setCustomBet(e.target.value); setBetAmount(0); }}
                 className="w-full bg-[#1d0f3d] border border-[#5c3eb8] rounded-xl px-4 py-3 text-white placeholder-[#5c3eb8] focus:outline-none focus:border-[#FFD700] text-sm"
@@ -202,7 +193,7 @@ export default function CreateRoom() {
             onClick={handleCreate}
             disabled={createRoom.isPending}
           >
-            {createRoom.isPending ? 'Creating...' : 'Create & Get Code'}
+            {createRoom.isPending ? 'তৈরি হচ্ছে...' : 'রুম তৈরি করুন ও কোড নিন'}
           </Button>
         </div>
 

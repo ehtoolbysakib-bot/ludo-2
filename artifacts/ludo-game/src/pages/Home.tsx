@@ -91,7 +91,7 @@ export default function Home() {
       {loginTarget && (
         <LoginModal
           onClose={() => setLoginTarget(null)}
-          onSuccess={() => { setLoginTarget(null); setLocation(loginTarget!); }}
+          onSuccess={() => { setLoginTarget(null); setLocation('/home'); }}
         />
       )}
 

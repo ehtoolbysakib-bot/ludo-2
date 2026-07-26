@@ -229,7 +229,7 @@ router.post("/rooms/:code/start", requireAuth, async (req: any, res): Promise<vo
     }
   }
 
-  const gameState = initGameState(players);
+  const gameState = initGameState(players, room.teamMode ?? false);
   await db
     .update(roomsTable)
     .set({ status: "playing", gameState })
@@ -238,6 +238,38 @@ router.post("/rooms/:code/start", requireAuth, async (req: any, res): Promise<vo
   broadcastAll(code.toUpperCase(), { type: "game_start", gameState });
 
   res.json({ ok: true });
+});
+
+// Swap player colors (team mode lobby)
+router.post("/rooms/:code/swap-colors", requireAuth, async (req: any, res): Promise<void> => {
+  const code = Array.isArray(req.params.code) ? req.params.code[0] : req.params.code;
+  const { clerkId1, clerkId2 } = req.body;
+
+  const [room] = await db.select().from(roomsTable).where(eq(roomsTable.code, code.toUpperCase()));
+  if (!room) { res.status(404).json({ error: "Room not found" }); return; }
+  if (room.hostId !== req.clerkId) { res.status(403).json({ error: "Only the host can swap players" }); return; }
+  if (room.status !== "waiting") { res.status(400).json({ error: "Game already started" }); return; }
+
+  const players = (room.players as any[]) || [];
+  const p1 = players.find((p: any) => p.clerkId === clerkId1);
+  const p2 = players.find((p: any) => p.clerkId === clerkId2);
+  if (!p1 || !p2) { res.status(400).json({ error: "Players not found" }); return; }
+
+  const updatedPlayers = players.map((p: any) => {
+    if (p.clerkId === clerkId1) return { ...p, color: p2.color };
+    if (p.clerkId === clerkId2) return { ...p, color: p1.color };
+    return p;
+  });
+
+  const [updated] = await db.update(roomsTable)
+    .set({ players: updatedPlayers })
+    .where(eq(roomsTable.code, code.toUpperCase()))
+    .returning();
+
+  const { broadcastAll } = await import("../lib/gameWebSocket");
+  broadcastAll(code.toUpperCase(), { type: "room_update", players: updatedPlayers });
+
+  res.json(formatRoom(updated));
 });
 
 // Leave room

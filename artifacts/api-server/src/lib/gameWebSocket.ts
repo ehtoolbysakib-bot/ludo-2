@@ -168,26 +168,21 @@ function canMoveToken(token: GameToken, dice: number, _color: string): boolean {
   return true;
 }
 
-// ── Custom capture logic ──────────────────────────────────────────────────────
+// ── Capture logic ─────────────────────────────────────────────────────────────
 //
-// Situation 2 (leaving a square): after the token moves away, if my remaining
-// tokens at the OLD square ≤ opponents there → MY tokens get captured.
-//
-// Situation 1 (entering a square): after landing, if my count at the NEW square
-// ≥ opponents there → all opponent tokens there get captured → extra turn.
-//
-// Order: first Situation 2, then Situation 1.
-// Safe squares: neither situation applies.
+// Simple rule: when a token lands on a square that has opponent token(s),
+// ALL opponent tokens on that square are sent back home.
+// Safe squares are exempt — no captures there.
 
 interface CaptureResult {
-  capturedOpponents: number; // how many opponent tokens were sent home
+  capturedOpponents: number;
 }
 
 function processCaptures(
   gs: GameState,
   playerIdx: number,
   tokenId: number,
-  oldRelPos: number, // relative pos before move (-1 = was in base)
+  _oldRelPos: number,
 ): CaptureResult {
   const player = gs.players[playerIdx];
   const token = player.tokens[tokenId];
@@ -195,92 +190,30 @@ function processCaptures(
 
   const myTeam = gs.teamMode ? getTeamId(player.color) : null;
 
-  // Helper: count tokens of a player at an absolute position (main board only)
-  const countAt = (pi: number, absPos: number) =>
-    gs.players[pi].tokens.filter(
-      t => !t.isHome && !t.isFinished && t.position < 52 &&
-        getAbsolutePosition(t.position, gs.players[pi].color) === absPos
-    ).length;
-
-  // ── Situation 2: old square ───────────────────────────────────────────────
-  if (oldRelPos >= 0 && oldRelPos < 52) {
-    const oldAbsPos = getAbsolutePosition(oldRelPos, player.color);
-    if (!SAFE_SQUARES.has(oldAbsPos)) {
-      // My remaining tokens at old square (excluding the moved one)
-      const myRemaining = player.tokens.filter((t, ti) =>
-        ti !== tokenId && !t.isHome && !t.isFinished && t.position < 52 &&
-        getAbsolutePosition(t.position, player.color) === oldAbsPos
-      ).length;
-
-      if (myRemaining > 0) {
-        let opponentCount = 0;
-        for (let pi = 0; pi < gs.players.length; pi++) {
-          const isOpponent = gs.teamMode
-            ? getTeamId(gs.players[pi].color) !== myTeam
-            : pi !== playerIdx;
-          if (isOpponent) opponentCount += countAt(pi, oldAbsPos);
-        }
-
-        // My remaining ≤ opponents → my tokens get cut
-        if (myRemaining <= opponentCount) {
-          player.tokens.forEach((t, ti) => {
-            if (ti !== tokenId && !t.isHome && !t.isFinished && t.position < 52 &&
-              getAbsolutePosition(t.position, player.color) === oldAbsPos) {
-              t.position = -1;
-              t.isHome = true;
-            }
-          });
-        }
-      }
-    }
-  }
-
-  // ── Situation 1: new square ───────────────────────────────────────────────
+  // Only check the new square the token just landed on
   const newPos = token.position;
-  if (!token.isFinished && newPos >= 0 && newPos < 52) {
-    const newAbsPos = getAbsolutePosition(newPos, player.color);
-    if (!SAFE_SQUARES.has(newAbsPos)) {
-      // My (team) count at new square
-      let myCount = 0;
-      if (gs.teamMode) {
-        for (let pi = 0; pi < gs.players.length; pi++) {
-          if (getTeamId(gs.players[pi].color) === myTeam) myCount += countAt(pi, newAbsPos);
-        }
-      } else {
-        myCount = player.tokens.filter(
-          t => !t.isHome && !t.isFinished && t.position < 52 &&
-            getAbsolutePosition(t.position, player.color) === newAbsPos
-        ).length;
-      }
+  if (token.isFinished || newPos < 0 || newPos >= 52) return { capturedOpponents };
 
-      // Opponent count at new square
-      let opponentCount = 0;
-      for (let pi = 0; pi < gs.players.length; pi++) {
-        const isOpponent = gs.teamMode
-          ? getTeamId(gs.players[pi].color) !== myTeam
-          : pi !== playerIdx;
-        if (isOpponent) opponentCount += countAt(pi, newAbsPos);
-      }
+  const newAbsPos = getAbsolutePosition(newPos, player.color);
 
-      // My count ≥ opponents → capture all opponent tokens there
-      if (opponentCount > 0 && myCount >= opponentCount) {
-        for (let pi = 0; pi < gs.players.length; pi++) {
-          const isOpponent = gs.teamMode
-            ? getTeamId(gs.players[pi].color) !== myTeam
-            : pi !== playerIdx;
-          if (isOpponent) {
-            gs.players[pi].tokens.forEach(t => {
-              if (!t.isHome && !t.isFinished && t.position < 52 &&
-                getAbsolutePosition(t.position, gs.players[pi].color) === newAbsPos) {
-                t.position = -1;
-                t.isHome = true;
-                capturedOpponents++;
-              }
-            });
-          }
-        }
+  // Safe squares — no capture
+  if (SAFE_SQUARES.has(newAbsPos)) return { capturedOpponents };
+
+  // Send all opponent tokens on this square back home
+  for (let pi = 0; pi < gs.players.length; pi++) {
+    const isOpponent = gs.teamMode
+      ? getTeamId(gs.players[pi].color) !== myTeam
+      : pi !== playerIdx;
+    if (!isOpponent) continue;
+
+    gs.players[pi].tokens.forEach(t => {
+      if (!t.isHome && !t.isFinished && t.position < 52 &&
+        getAbsolutePosition(t.position, gs.players[pi].color) === newAbsPos) {
+        t.position = -1;
+        t.isHome = true;
+        capturedOpponents++;
       }
-    }
+    });
   }
 
   return { capturedOpponents };

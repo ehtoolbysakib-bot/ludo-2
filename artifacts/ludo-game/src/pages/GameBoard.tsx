@@ -459,12 +459,12 @@ export default function GameBoard() {
       <div className="fixed inset-0 z-0" style={{ backgroundImage: `url(${splashBg})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }} />
       <div className="fixed inset-0 z-0" style={{ background: 'linear-gradient(180deg, rgba(10,5,30,0.80) 0%, rgba(10,5,30,0.65) 40%, rgba(10,5,30,0.90) 100%)' }} />
 
-      <div className="min-h-[100dvh] flex flex-col relative overflow-hidden z-10">
+      <div className="h-[100dvh] flex flex-col relative overflow-hidden z-10">
         <div className="absolute inset-0 opacity-20 mix-blend-screen transition-colors duration-1000 blur-[100px]"
           style={{ backgroundColor: COLORS[turnColor as keyof typeof COLORS] }} />
 
         {/* Header */}
-        <div className="p-4 flex items-center justify-between z-10">
+        <div className="px-4 py-2 flex items-center justify-between z-10 shrink-0">
           <button onClick={() => setLocation('/home')}
             className="w-10 h-10 rounded-full bg-[#3a2382] flex items-center justify-center text-white active:scale-95 border border-[#5c3eb8]">
             <ChevronLeft size={24} />
@@ -477,30 +477,32 @@ export default function GameBoard() {
           </button>
         </div>
 
-        <div className="flex-1 flex flex-col items-center justify-center p-4 z-10 w-full max-w-lg mx-auto">
+        <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-4 py-1 z-10 w-full max-w-lg mx-auto">
           {/* Top badges */}
-          <div className="w-full flex justify-between px-4 mb-4">
+          <div className="w-full flex justify-between px-2 mb-2 shrink-0">
             {badge(topLeft, 'left')}
             {badge(topRight, 'right')}
           </div>
 
-          {/* Board */}
-          <LudoBoard
-            tokens={displayTokens}
-            onTokenClick={handleTokenMove}
-            activeColor={turnColor}
-            allowedTokens={allowedTokenIds}
-          />
+          {/* Board — shrinks to fit remaining space */}
+          <div className="w-full min-h-0 flex items-center justify-center">
+            <LudoBoard
+              tokens={displayTokens}
+              onTokenClick={handleTokenMove}
+              activeColor={turnColor}
+              allowedTokens={allowedTokenIds}
+            />
+          </div>
 
           {/* Bottom badges */}
-          <div className="w-full flex justify-between px-4 mt-4">
+          <div className="w-full flex justify-between px-2 mt-2 shrink-0">
             {badge(botLeft, 'left')}
             {badge(botRight, 'right')}
           </div>
         </div>
 
         {/* Controls */}
-        <div className="p-6 z-10 mt-auto bg-gradient-to-t from-[#110524] to-transparent">
+        <div className="px-4 pb-4 pt-2 z-10 shrink-0 bg-gradient-to-t from-[#110524] to-transparent">
           <div className="glass-panel p-4 rounded-3xl shadow-2xl flex flex-col gap-3">
             {/* Main row: turn info + dice */}
             <div className="flex items-center justify-between">
